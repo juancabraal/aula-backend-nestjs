@@ -1,0 +1,55 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+    branches:
+        include:
+            - develop
+    paths:
+        include:
+            - aula/backend/*
+
+variables:
+    - group: AZURE-SERVICE-URL
+    - group: URLS-DEV
+    - name: module_path
+      value: ./aula/backend
+    - name: DockerImageName
+      value: etapa-dev-aula-backend
+
+pool:
+    vmImage: 'ubuntu-latest'
+
+steps:
+    - task: CmdLine@1
+      displayName: 'Set image name and version in deployment.yaml'
+      inputs:
+          filename: /bin/bash
+          arguments: '-c "awk ''{gsub(\"IMAGE_NAME\", \"geedevuseast2containerimages.azurecr.io/$(DockerImageName):$(Build.BuildId)\", $0); print}'' $(module_path)/deployment.yaml > $(build.artifactstagingdirectory)/deployment.yaml"'
+    - task: Docker@2
+      displayName: 'Build image'
+      inputs:
+          command: build
+          containerRegistry: 'geedevuseast2containerimages'
+          repository: '$(DockerImageName)'
+          dockerFile: '$(module_path)/Dockerfile'
+          arguments: --build-arg DB_CONNECTION --build-arg DB_HOST --build-arg DB_PORT --build-arg DB_DATABASE --build-arg DB_USERNAME --build-arg DB_PASSWORD --build-arg AZURE_STORAGE_NAME --build-arg AZURE_STORAGE_KEY --build-arg AZURE_STORAGE_CONTAINER --build-arg AZURE_STORAGE_URL --build-arg AZURE_STORAGE_CONNECTION_STRING --build-arg AZURE_STORAGE_SAS_KEY --build-arg URL_APPLICATION --build-arg MODULO_URL --build-arg QUESTAO_DB_CONNECTION --build-arg QUESTAO_DB_HOST --build-arg QUESTAO_DB_PORT --build-arg QUESTAO_DB_DATABASE --build-arg QUESTAO_DB_USER --build-arg QUESTAO_DB_PASSWORD
+          tags: |
+              $(Build.BuildId)
+              latest
+    - task: Docker@2
+      displayName: 'Push image'
+      inputs:
+          command: push
+          containerRegistry: 'geedevuseast2containerimages'
+          repository: '$(DockerImageName)'
+          tags: |
+              $(Build.BuildId)
+              latest
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Artifact'
+      inputs:
+          PathtoPublish: '$(build.artifactstagingdirectory)'
